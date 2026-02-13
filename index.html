@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-Means Clustering Visualiser</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  .explanation {
+    max-width: 640px;
+    text-align: center;
+    color: #555;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    margin-bottom: 1.25rem;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stats {
+    font-size: 0.85rem;
+    color: #333;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 0.4rem 1rem;
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+  }
+
+  .stats span { font-weight: 600; color: #1a1a2e; }
+
+  button {
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button:active { transform: scale(0.97); }
+
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+
+  .btn-success { background: #d1fae5; color: #065f46; }
+  .btn-success:hover { background: #a7f3d0; }
+
+  .btn-secondary { background: #e2e8f0; color: #334155; }
+  .btn-secondary:hover { background: #cbd5e1; }
+
+  .btn-danger { background: #fee2e2; color: #b91c1c; }
+  .btn-danger:hover { background: #fecaca; }
+
+  .k-control {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 0.2rem 0.5rem;
+  }
+  .k-control button {
+    width: 26px; height: 26px; padding: 0;
+    font-size: 1rem; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; background: #e2e8f0; color: #334155;
+  }
+  .k-control button:hover { background: #cbd5e1; }
+  .k-value {
+    min-width: 1.5rem; text-align: center;
+    font-size: 1rem; font-weight: 700; color: #1a1a2e;
+  }
+
+  .badge {
+    font-size: 0.75rem; font-weight: 600;
+    padding: 0.15rem 0.5rem; border-radius: 9999px;
+  }
+  .badge-idle      { background: #e2e8f0; color: #64748b; }
+  .badge-running   { background: #dbeafe; color: #2563eb; }
+  .badge-converged { background: #d1fae5; color: #065f46; }
+
+  .speed-control {
+    display: flex; align-items: center; gap: 0.3rem;
+    font-size: 0.8rem; color: #64748b;
+  }
+  .speed-control input[type="range"] {
+    width: 60px; accent-color: #3b82f6;
+  }
+
+  .canvas-wrap {
+    border: 2px solid #c4c8d0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    line-height: 0;
+  }
+
+  canvas { display: block; cursor: crosshair; }
+
+  .hint {
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    color: #999;
+    text-align: center;
+    max-width: 600px;
+  }
+</style>
+</head>
+<body>
+
+<h1>K-Means Clustering Visualiser</h1>
+
+<p class="explanation">
+  <strong>K-means</strong> partitions <em>n</em> data points into <em>k</em> clusters by
+  iteratively assigning each point to its nearest centroid, then moving each centroid
+  to the mean of its cluster. The algorithm converges when centroids stop moving.
+</p>
+
+<div class="toolbar">
+  <div class="stats">
+    <div>Points:&ensp;<span id="stat-n">0</span></div>
+    <div>Iteration:&ensp;<span id="stat-iter">0</span></div>
+    <div id="stat-status"><span class="badge badge-idle">Idle</span></div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="k-control">
+    <span>k</span>
+    <button id="k-minus">&minus;</button>
+    <span class="k-value" id="k-display">3</span>
+    <button id="k-plus">+</button>
+  </div>
+  <button class="btn-secondary" id="btn-random">+50 Random</button>
+  <button class="btn-primary" id="btn-step">Step</button>
+  <button class="btn-success" id="btn-run">&#9654; Run</button>
+  <button class="btn-secondary" id="btn-reset">&#8634; Reset</button>
+  <button class="btn-danger" id="btn-clear">Clear</button>
+  <div class="speed-control">
+    <label for="speed">Speed</label>
+    <input type="range" id="speed" min="1" max="10" value="5">
+  </div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<p class="hint" id="hint">Click anywhere on the canvas to place data points, or add random points.</p>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- Configuration ---- */
+  var W = 800;
+  var H = 500;
+  var POINT_R = 4;
+  var CENTROID_R = 9;
+  var MAX_K = 8;
+  var MIN_K = 2;
+  var VORONOI_RES = 10;
+
+  var COLORS = [
+    '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
+    '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+  ];
+
+  var COLORS_RGB = [
+    [59, 130, 246], [239, 68, 68],  [16, 185, 129], [245, 158, 11],
+    [139, 92, 246], [236, 72, 153], [6, 182, 212],  [249, 115, 22]
+  ];
+
+  /* ---- DOM refs ---- */
+  var canvas     = document.getElementById('canvas');
+  var ctx        = canvas.getContext('2d');
+  var statN      = document.getElementById('stat-n');
+  var statIter   = document.getElementById('stat-iter');
+  var statStatus = document.getElementById('stat-status');
+  var kDisplay   = document.getElementById('k-display');
+  var btnRun     = document.getElementById('btn-run');
+  var hintEl     = document.getElementById('hint');
+  var speedSlider = document.getElementById('speed');
+
+  /* ---- HiDPI handling ---- */
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  /* ---- State ---- */
+  var points      = [];     // [{x, y}]
+  var centroids   = [];     // [{x, y}]
+  var assignments = [];     // [clusterIndex], parallel to points
+  var k           = 3;
+  var iteration   = 0;
+  var converged   = false;
+  var initialized = false;
+  var running     = false;
+  var animTimer   = null;
+
+  /* ---- Off-screen canvas for Voronoi regions ---- */
+  var vW = Math.ceil(W / VORONOI_RES);
+  var vH = Math.ceil(H / VORONOI_RES);
+  var voronoiCanvas = document.createElement('canvas');
+  voronoiCanvas.width  = vW;
+  voronoiCanvas.height = vH;
+  var voronoiCtx = voronoiCanvas.getContext('2d');
+
+  // ===============================================================
+  // K-means++ initialisation
+  // ===============================================================
+  function initializeCentroids() {
+    if (points.length < k) return false;
+    centroids = [];
+
+    // First centroid: pick a random data point
+    var idx = Math.floor(Math.random() * points.length);
+    centroids.push({ x: points[idx].x, y: points[idx].y });
+
+    // Remaining centroids chosen with probability proportional to D²
+    for (var c = 1; c < k; c++) {
+      var dists = [];
+      var total = 0;
+      for (var i = 0; i < points.length; i++) {
+        var minD = Infinity;
+        for (var j = 0; j < centroids.length; j++) {
+          var dx = points[i].x - centroids[j].x;
+          var dy = points[i].y - centroids[j].y;
+          var d2 = dx * dx + dy * dy;
+          if (d2 < minD) minD = d2;
+        }
+        dists.push(minD);
+        total += minD;
+      }
+      var r = Math.random() * total;
+      var cum = 0;
+      for (var i = 0; i < dists.length; i++) {
+        cum += dists[i];
+        if (cum >= r) {
+          centroids.push({ x: points[i].x, y: points[i].y });
+          break;
+        }
+      }
+    }
+
+    assignments = new Array(points.length).fill(-1);
+    iteration   = 0;
+    converged   = false;
+    initialized = true;
+    return true;
+  }
+
+  // ===============================================================
+  // Assignment step — assign each point to its nearest centroid
+  // ===============================================================
+  function assignPoints() {
+    for (var i = 0; i < points.length; i++) {
+      var minD = Infinity, best = 0;
+      for (var j = 0; j < centroids.length; j++) {
+        var dx = points[i].x - centroids[j].x;
+        var dy = points[i].y - centroids[j].y;
+        var d2 = dx * dx + dy * dy;
+        if (d2 < minD) { minD = d2; best = j; }
+      }
+      assignments[i] = best;
+    }
+  }
+
+  // ===============================================================
+  // Update step — move each centroid to the mean of its cluster
+  // Returns true if any centroid moved appreciably
+  // ===============================================================
+  function updateCentroids() {
+    var moved = false;
+    for (var j = 0; j < k; j++) {
+      var sx = 0, sy = 0, n = 0;
+      for (var i = 0; i < points.length; i++) {
+        if (assignments[i] === j) { sx += points[i].x; sy += points[i].y; n++; }
+      }
+      if (n > 0) {
+        var nx = sx / n, ny = sy / n;
+        if (Math.abs(nx - centroids[j].x) > 0.1 ||
+            Math.abs(ny - centroids[j].y) > 0.1) moved = true;
+        centroids[j].x = nx;
+        centroids[j].y = ny;
+      } else {
+        // Empty cluster — re-seed from a random data point
+        var ri = Math.floor(Math.random() * points.length);
+        centroids[j].x = points[ri].x;
+        centroids[j].y = points[ri].y;
+        moved = true;
+      }
+    }
+    return moved;
+  }
+
+  // ===============================================================
+  // One full iteration (update centroids, then reassign)
+  // First call initialises and performs the initial assignment.
+  // ===============================================================
+  function step() {
+    if (points.length < k) { updateUI(); return; }
+
+    if (!initialized) {
+      if (!initializeCentroids()) return;
+      assignPoints();
+      render();
+      updateUI();
+      return;
+    }
+    if (converged) return;
+
+    var moved = updateCentroids();
+    assignPoints();
+    iteration++;
+    if (!moved) converged = true;
+
+    render();
+    updateUI();
+  }
+
+  // ===============================================================
+  // Auto-run controls
+  // ===============================================================
+  function startRunning() {
+    if (points.length < k) { updateUI(); return; }
+    if (converged && initialized) return;
+    running = true;
+    btnRun.innerHTML = '&#9646;&#9646; Pause';
+    updateUI();
+    tick();
+  }
+
+  function tick() {
+    step();
+    if (converged || !running) { stopRunning(); return; }
+    animTimer = setTimeout(tick, getDelay());
+  }
+
+  function stopRunning() {
+    running = false;
+    clearTimeout(animTimer);
+    animTimer = null;
+    btnRun.innerHTML = '&#9654; Run';
+    updateUI();
+  }
+
+  function getDelay() {
+    var s = parseInt(speedSlider.value, 10);
+    return 1050 - s * 100;   // speed 1 → 950 ms … speed 10 → 50 ms
+  }
+
+  // ===============================================================
+  // Reset algorithm (keep data points) / Clear everything
+  // ===============================================================
+  function resetAlgorithm() {
+    stopRunning();
+    centroids   = [];
+    assignments = [];
+    iteration   = 0;
+    converged   = false;
+    initialized = false;
+    render();
+    updateUI();
+  }
+
+  function clearAll() {
+    stopRunning();
+    points      = [];
+    centroids   = [];
+    assignments = [];
+    iteration   = 0;
+    converged   = false;
+    initialized = false;
+    render();
+    updateUI();
+  }
+
+  // ===============================================================
+  // Generate clustered random points (Gaussian blobs)
+  // ===============================================================
+  function gaussRand() {
+    var u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  function addRandomPoints(count) {
+    var blobs   = Math.max(2, Math.min(k + 1, 5));
+    var margin  = 100;
+    var centres = [];
+    for (var b = 0; b < blobs; b++) {
+      centres.push({
+        x: margin + Math.random() * (W - 2 * margin),
+        y: margin + Math.random() * (H - 2 * margin)
+      });
+    }
+    for (var i = 0; i < count; i++) {
+      var c   = centres[Math.floor(Math.random() * blobs)];
+      var std = 35 + Math.random() * 30;
+      var px  = c.x + gaussRand() * std;
+      var py  = c.y + gaussRand() * std;
+      px = Math.max(POINT_R, Math.min(W - POINT_R, px));
+      py = Math.max(POINT_R, Math.min(H - POINT_R, py));
+      points.push({ x: px, y: py });
+    }
+    if (initialized) resetAlgorithm();
+    else { render(); updateUI(); }
+  }
+
+  // ===============================================================
+  // UI updates — stats bar + dynamic hint text
+  // ===============================================================
+  function updateUI() {
+    statN.textContent    = points.length;
+    statIter.textContent = iteration;
+
+    if (converged) {
+      statStatus.innerHTML = '<span class="badge badge-converged">Converged</span>';
+    } else if (running) {
+      statStatus.innerHTML = '<span class="badge badge-running">Running</span>';
+    } else if (initialized) {
+      statStatus.innerHTML = '<span class="badge badge-running">Paused</span>';
+    } else {
+      statStatus.innerHTML = '<span class="badge badge-idle">Idle</span>';
+    }
+
+    if (points.length === 0) {
+      hintEl.textContent = 'Click anywhere on the canvas to place data points, or add random points.';
+    } else if (points.length < k) {
+      hintEl.textContent = 'Need at least ' + k + ' points for ' + k + ' clusters \u2014 add more!';
+    } else if (!initialized) {
+      hintEl.textContent = 'Press Step or Run to cluster ' + points.length + ' points into ' + k + ' groups.';
+    } else if (converged) {
+      hintEl.textContent = 'Converged after ' + iteration + ' iteration' + (iteration !== 1 ? 's' : '') + '. Press Reset to re-cluster or Clear to start over.';
+    } else if (running) {
+      hintEl.textContent = 'Running\u2026 press Pause to stop.';
+    } else {
+      hintEl.textContent = 'Press Step to advance one iteration, or Run to animate.';
+    }
+  }
+
+  // ===============================================================
+  // Voronoi background — rendered into an off-screen canvas at low
+  // resolution and drawn scaled-up for performance.
+  // ===============================================================
+  function drawVoronoi() {
+    var imgData = voronoiCtx.createImageData(vW, vH);
+    var buf = imgData.data;
+    var half = VORONOI_RES * 0.5;
+
+    for (var y = 0; y < vH; y++) {
+      for (var x = 0; x < vW; x++) {
+        var px = x * VORONOI_RES + half;
+        var py = y * VORONOI_RES + half;
+        var minD = Infinity, best = 0;
+        for (var j = 0; j < centroids.length; j++) {
+          var dx = px - centroids[j].x;
+          var dy = py - centroids[j].y;
+          var dist = dx * dx + dy * dy;
+          if (dist < minD) { minD = dist; best = j; }
+        }
+        var rgb = COLORS_RGB[best % COLORS.length];
+        var off = (y * vW + x) * 4;
+        buf[off]     = rgb[0];
+        buf[off + 1] = rgb[1];
+        buf[off + 2] = rgb[2];
+        buf[off + 3] = 22;
+      }
+    }
+    voronoiCtx.putImageData(imgData, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(voronoiCanvas, 0, 0, W, H);
+  }
+
+  // ===============================================================
+  // Main render
+  // ===============================================================
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 1. Voronoi background regions
+    if (centroids.length > 0) drawVoronoi();
+
+    // 2. Faint grid
+    ctx.strokeStyle = '#eee';
+    ctx.lineWidth = 1;
+    for (var gx = 50; gx < W; gx += 50) {
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    }
+    for (var gy = 50; gy < H; gy += 50) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+    }
+
+    // 3. Connecting lines from points to centroids (skip above 150 points)
+    if (initialized && points.length <= 150) {
+      ctx.lineWidth   = 1;
+      ctx.globalAlpha = 0.12;
+      for (var i = 0; i < points.length; i++) {
+        var ci = assignments[i];
+        if (ci >= 0 && ci < centroids.length) {
+          ctx.strokeStyle = COLORS[ci % COLORS.length];
+          ctx.beginPath();
+          ctx.moveTo(points[i].x, points[i].y);
+          ctx.lineTo(centroids[ci].x, centroids[ci].y);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // 4. Data points
+    for (var i = 0; i < points.length; i++) {
+      var col = (initialized && assignments[i] >= 0)
+        ? COLORS[assignments[i] % COLORS.length]
+        : '#94a3b8';
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(points[i].x, points[i].y, POINT_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // 5. Centroids
+    for (var j = 0; j < centroids.length; j++) {
+      var cx  = centroids[j].x;
+      var cy  = centroids[j].y;
+      var col = COLORS[j % COLORS.length];
+
+      // Drop shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.13)';
+      ctx.beginPath();
+      ctx.arc(cx + 1, cy + 1, CENTROID_R + 1, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Filled circle
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(cx, cy, CENTROID_R, 0, Math.PI * 2);
+      ctx.fill();
+
+      // White ring
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, CENTROID_R, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Plus / cross marker
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, cy); ctx.lineTo(cx + 4, cy);
+      ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 4);
+      ctx.stroke();
+    }
+  }
+
+  // ===============================================================
+  // Event listeners
+  // ===============================================================
+
+  // Canvas click → add data point
+  canvas.addEventListener('click', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (W / rect.width);
+    var y = (e.clientY - rect.top)  * (H / rect.height);
+    points.push({ x: x, y: y });
+    if (initialized) resetAlgorithm();
+    else { render(); updateUI(); }
+  });
+
+  // k ± buttons
+  document.getElementById('k-minus').addEventListener('click', function () {
+    if (k <= MIN_K) return;
+    k--;
+    kDisplay.textContent = k;
+    if (initialized) resetAlgorithm();
+    else updateUI();
+  });
+  document.getElementById('k-plus').addEventListener('click', function () {
+    if (k >= MAX_K) return;
+    k++;
+    kDisplay.textContent = k;
+    if (initialized) resetAlgorithm();
+    else updateUI();
+  });
+
+  // Step
+  document.getElementById('btn-step').addEventListener('click', function () {
+    if (running) stopRunning();
+    step();
+  });
+
+  // Run / Pause
+  btnRun.addEventListener('click', function () {
+    if (running) stopRunning();
+    else startRunning();
+  });
+
+  // Speed slider — restart timer when adjusted mid-run
+  speedSlider.addEventListener('input', function () {
+    if (running) { stopRunning(); startRunning(); }
+  });
+
+  // Reset & Clear
+  document.getElementById('btn-reset').addEventListener('click', resetAlgorithm);
+  document.getElementById('btn-clear').addEventListener('click', clearAll);
+
+  // +50 random points
+  document.getElementById('btn-random').addEventListener('click', function () {
+    addRandomPoints(50);
+  });
+
+  // ---- Initial render ----
+  render();
+  updateUI();
+})();
+</script>
+</body>
+</html>
