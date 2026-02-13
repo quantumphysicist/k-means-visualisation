@@ -1,5 +1,7 @@
 # K-Means Clustering Visualiser
 
+**See it in action at [quantumphysicist.github.io/k-means-visualisation](https://quantumphysicist.github.io/k-means-visualisation/).**
+
 An interactive, single-file HTML demo that visualises the **k-means clustering algorithm** step by step on a 2D canvas.
 
 ![HTML5](https://img.shields.io/badge/HTML5-Canvas-orange) ![No Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
